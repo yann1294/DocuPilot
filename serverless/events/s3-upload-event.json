@@ -1,0 +1,8 @@
+{
+  "Records": [
+    {
+      "eventSource": "aws:s3",
+      "eventName": "ObjectCreated:Put"
+    }
+  ]
+}

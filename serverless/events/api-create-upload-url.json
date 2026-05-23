@@ -1,0 +1,5 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /documents/upload-url",
+  "rawPath": "/documents/upload-url"
+}

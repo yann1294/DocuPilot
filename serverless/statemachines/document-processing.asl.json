@@ -1,0 +1,11 @@
+{
+  "Comment": "DocuPilot document processing state machine",
+  "StartAt": "GeminiProcess",
+  "States": {
+    "GeminiProcess": {
+      "Type": "Task",
+      "End": true,
+      "Resource": "arn:aws:states:::lambda:invoke"
+    }
+  }
+}
