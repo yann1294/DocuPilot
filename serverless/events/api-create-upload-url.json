@@ -1,5 +1,39 @@
 {
   "version": "2.0",
-  "routeKey": "POST /documents/upload-url",
-  "rawPath": "/documents/upload-url"
+  "routeKey": "POST /uploads",
+  "rawPath": "/uploads",
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "local-api-id",
+    "domainName": "localhost",
+    "domainPrefix": "localhost",
+    "http": {
+      "method": "POST",
+      "path": "/uploads",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "sam-local"
+    },
+    "requestId": "req-local-upload-001",
+    "routeKey": "POST /uploads",
+    "stage": "$default",
+    "time": "23/May/2026:20:00:00 +0000",
+    "timeEpoch": 1779566400000,
+    "authorizer": {
+      "jwt": {
+        "claims": {
+          "sub": "user_2jL8F9q6x0m",
+          "iss": "https://clerk.example.com",
+          "aud": "docupilot-api"
+        },
+        "scopes": []
+      }
+    }
+  },
+  "headers": {
+    "content-type": "application/json",
+    "authorization": "Bearer mock.jwt.token"
+  },
+  "body": "{\"fileName\":\"invoice-2026-05.pdf\",\"mimeType\":\"application/pdf\",\"fileSize\":245760}",
+  "isBase64Encoded": false
 }

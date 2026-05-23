@@ -42,6 +42,9 @@ Resources:
   DocumentsBucket:
     Type: AWS::S3::Bucket
     Properties:
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
       CorsConfiguration:
         CorsRules:
           - AllowedMethods: [PUT, GET, HEAD]
@@ -60,11 +63,24 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
 
   # HTTP API exposed to Next.js client.
   DocuPilotApi:
@@ -130,6 +146,9 @@ Resources:
     Properties:
       CodeUri: .
       Handler: src/functions/start-processing/handler.handler
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref DocumentProcessingStateMachine
       Policies:
         - Statement:
             Effect: Allow
@@ -141,17 +160,6 @@ Resources:
             Action:
               - dynamodb:UpdateItem
             Resource: !GetAtt DocumentsTable.Arn
-      Events:
-        S3Upload:
-          Type: S3
-          Properties:
-            Bucket: !Ref DocumentsBucket
-            Events: s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: uploads/
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -160,6 +168,34 @@ Resources:
         Sourcemap: true
         EntryPoints:
           - src/functions/start-processing/handler.ts
+
+  DocumentsObjectCreatedRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Route S3 object-created events in uploads/ to StartProcessingFunction.
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - !Ref DocumentsBucket
+          object:
+            key:
+              - prefix: uploads/
+      Targets:
+        - Arn: !GetAtt StartProcessingFunction.Arn
+          Id: StartProcessingFunctionTarget
+
+  StartProcessingEventBridgePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StartProcessingFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DocumentsObjectCreatedRule.Arn
 
   # Reads file content and calls Gemini.
   GeminiProcessDocumentFunction:
@@ -374,11 +410,11 @@ Outputs:
     Description: Base URL for DocuPilot HTTP API.
     Value: !Sub "https://${DocuPilotApi}.execute-api.${AWS::Region}.amazonaws.com"
 
-  BucketName:
+  DocumentsBucketName:
     Description: Upload bucket name.
     Value: !Ref DocumentsBucket
 
-  TableName:
+  DocumentsTableName:
     Description: DynamoDB table name.
     Value: !Ref DocumentsTable
 

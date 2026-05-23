@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "docupilot-dev"
+resolve_s3 = true
+s3_prefix = "docupilot-dev"
+profile = "docupilot-dev"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=\"dev\" ClerkIssuer=\"https://easy-quagga-26.clerk.accounts.dev\" ClerkAudience=\"docupilot-api\" GeminiApiKeyParameterName=\"/docupilot/dev/GEMINI_API_KEY\""
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-south-1"
