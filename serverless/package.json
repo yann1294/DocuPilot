@@ -3,10 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "tsc --noEmit",
-    "sam:build": "sam build",
-    "sam:validate": "sam validate",
-    "sam:deploy": "sam deploy --guided"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "validate:sam": "sam validate -t template.yaml"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.820.0",
@@ -15,11 +14,13 @@
     "@aws-sdk/lib-dynamodb": "^3.820.0",
     "@aws-sdk/s3-request-presigner": "^3.820.0",
     "@google/generative-ai": "^0.24.1",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
     "@types/jsonwebtoken": "^9.0.6",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@types/node": "^22.15.21"
   }
 }

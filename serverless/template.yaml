@@ -2,4 +2,286 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: DocuPilot backend
 
-Resources: {}
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+
+  ClerkIssuer:
+    Type: String
+    Description: Clerk JWT issuer from the token iss claim
+
+  ClerkAudience:
+    Type: String
+    Default: docupilot-api
+
+  GeminiApiKeyParameterName:
+    Type: String
+    Default: /docupilot/dev/GEMINI_API_KEY
+
+Globals:
+  Function:
+    Runtime: nodejs20.x # If rejected by AWS, switch to nodejs22.x.
+    Architectures:
+      - arm64
+    Timeout: 30
+    MemorySize: 512
+    Tracing: Active
+    Environment:
+      Variables:
+        STAGE: !Ref Stage
+        DOCUMENTS_TABLE: !Ref DocumentsTable
+        DOCUMENTS_BUCKET: !Ref DocumentsBucket
+        GEMINI_API_KEY_PARAMETER: !Ref GeminiApiKeyParameterName
+
+Resources:
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [PUT, GET, HEAD]
+            AllowedOrigins:
+              - "http://localhost:3000"
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+
+  DocumentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  DocuPilotApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - "http://localhost:3000"
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+      Auth:
+        DefaultAuthorizer: ClerkJwtAuthorizer
+        Authorizers:
+          ClerkJwtAuthorizer:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Ref ClerkIssuer
+              audience:
+                - !Ref ClerkAudience
+
+  CreateUploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/create-upload-url/handler.handler
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref DocumentsBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuPilotApi
+            Path: /uploads
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: es2020
+        EntryPoints:
+          - src/functions/create-upload-url/handler.ts
+
+  StartProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/start-processing/handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - states:StartExecution
+            Resource: !Ref DocumentProcessingStateMachine
+      Events:
+        S3Upload:
+          Type: S3
+          Properties:
+            Bucket: !Ref DocumentsBucket
+            Events: s3:ObjectCreated:Put
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: uploads/
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: es2020
+        EntryPoints:
+          - src/functions/start-processing/handler.ts
+
+  GeminiProcessDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/gemini-process-document/handler.handler
+      Timeout: 120
+      MemorySize: 1024
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref DocumentsBucket
+        - Statement:
+            Effect: Allow
+            Action:
+              - ssm:GetParameter
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/docupilot/${Stage}/*"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: es2020
+        EntryPoints:
+          - src/functions/gemini-process-document/handler.ts
+
+  PersistResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/persist-results/handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentsTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: es2020
+        EntryPoints:
+          - src/functions/persist-results/handler.ts
+
+  RecordApprovalTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/record-approval-token/handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentsTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: es2020
+        EntryPoints:
+          - src/functions/record-approval-token/handler.ts
+
+  ApproveDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/approve-document/handler.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - states:SendTaskSuccess
+              - states:SendTaskFailure
+            Resource: "*"
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuPilotApi
+            Path: /documents/{documentId}/approval
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: es2020
+        EntryPoints:
+          - src/functions/approve-document/handler.ts
+
+  ListDocumentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/list-documents/handler.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DocumentsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuPilotApi
+            Path: /documents
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: es2020
+        EntryPoints:
+          - src/functions/list-documents/handler.ts
+
+  DocumentProcessingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      DefinitionUri: statemachines/document-processing.asl.json
+      DefinitionSubstitutions:
+        GeminiProcessDocumentFunctionArn: !GetAtt GeminiProcessDocumentFunction.Arn
+        PersistResultsFunctionArn: !GetAtt PersistResultsFunction.Arn
+        RecordApprovalTokenFunctionArn: !GetAtt RecordApprovalTokenFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref GeminiProcessDocumentFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref PersistResultsFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RecordApprovalTokenFunction
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${DocuPilotApi}.execute-api.${AWS::Region}.amazonaws.com"
+  BucketName:
+    Value: !Ref DocumentsBucket
+  TableName:
+    Value: !Ref DocumentsTable

@@ -1,0 +1,16 @@
+{
+  "name": "docupilot",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "client",
+    "serverless"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev --workspace client",
+    "build:client": "npm run build --workspace client",
+    "build:serverless": "npm run build --workspace serverless",
+    "typecheck:serverless": "npm run typecheck --workspace serverless",
+    "validate:sam": "npm run validate:sam --workspace serverless"
+  }
+}
