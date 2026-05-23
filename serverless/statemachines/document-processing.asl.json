@@ -1,11 +1,66 @@
 {
   "Comment": "DocuPilot document processing state machine",
-  "StartAt": "GeminiProcess",
+  "StartAt": "GeminiProcessDocument",
   "States": {
-    "GeminiProcess": {
+    "GeminiProcessDocument": {
       "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${GeminiProcessDocumentFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.gemini",
+      "Next": "PersistResults",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "MarkFailed"
+        }
+      ]
+    },
+    "PersistResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${PersistResultsFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.persist",
+      "Next": "RecordApprovalToken",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "MarkFailed"
+        }
+      ]
+    },
+    "RecordApprovalToken": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${RecordApprovalTokenFunctionArn}",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.approval",
       "End": true,
-      "Resource": "arn:aws:states:::lambda:invoke"
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "MarkFailed"
+        }
+      ]
+    },
+    "MarkFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${MarkFailedFunctionArn}",
+        "Payload.$": "$"
+      },
+      "End": true
     }
   }
 }

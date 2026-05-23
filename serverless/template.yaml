@@ -9,19 +9,22 @@ Parameters:
 
   ClerkIssuer:
     Type: String
-    Description: Clerk JWT issuer from the token iss claim
+    Description: Clerk JWT issuer URL from the JWT `iss` claim.
 
   ClerkAudience:
     Type: String
+    Description: Clerk JWT audience from the JWT `aud` claim.
     Default: docupilot-api
 
   GeminiApiKeyParameterName:
     Type: String
+    Description: SSM parameter name that stores the Gemini API key.
     Default: /docupilot/dev/GEMINI_API_KEY
 
 Globals:
   Function:
-    Runtime: nodejs20.x # If rejected by AWS, switch to nodejs22.x.
+    # Keep nodejs20.x for now. If your region/account rejects it, switch to nodejs22.x.
+    Runtime: nodejs20.x
     Architectures:
       - arm64
     Timeout: 30
@@ -35,6 +38,7 @@ Globals:
         GEMINI_API_KEY_PARAMETER: !Ref GeminiApiKeyParameterName
 
 Resources:
+  # S3 bucket for original document uploads.
   DocumentsBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -46,6 +50,7 @@ Resources:
             AllowedHeaders: ["*"]
             MaxAge: 3000
 
+  # DynamoDB table with composite primary key (PK, SK).
   DocumentsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -55,25 +60,13 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
-        - AttributeName: GSI1PK
-          AttributeType: S
-        - AttributeName: GSI1SK
-          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: GSI1
-          KeySchema:
-            - AttributeName: GSI1PK
-              KeyType: HASH
-            - AttributeName: GSI1SK
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
 
+  # HTTP API exposed to Next.js client.
   DocuPilotApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -97,16 +90,24 @@ Resources:
               audience:
                 - !Ref ClerkAudience
 
+  # Creates pre-signed upload URL and initial document record.
   CreateUploadUrlFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: src/functions/create-upload-url/handler.handler
       Policies:
-        - S3WritePolicy:
-            BucketName: !Ref DocumentsBucket
-        - DynamoDBCrudPolicy:
-            TableName: !Ref DocumentsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${DocumentsBucket}/*"
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+            Resource: !GetAtt DocumentsTable.Arn
       Events:
         Api:
           Type: HttpApi
@@ -117,30 +118,35 @@ Resources:
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
-        Format: esm
-        Target: es2020
+        Target: es2022
+        Minify: true
+        Sourcemap: true
         EntryPoints:
           - src/functions/create-upload-url/handler.ts
 
+  # Triggered by S3 ObjectCreated event, starts Step Functions execution.
   StartProcessingFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: src/functions/start-processing/handler.handler
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref DocumentsTable
         - Statement:
             Effect: Allow
             Action:
               - states:StartExecution
             Resource: !Ref DocumentProcessingStateMachine
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:UpdateItem
+            Resource: !GetAtt DocumentsTable.Arn
       Events:
         S3Upload:
           Type: S3
           Properties:
             Bucket: !Ref DocumentsBucket
-            Events: s3:ObjectCreated:Put
+            Events: s3:ObjectCreated:*
             Filter:
               S3Key:
                 Rules:
@@ -149,11 +155,13 @@ Resources:
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
-        Format: esm
-        Target: es2020
+        Target: es2022
+        Minify: true
+        Sourcemap: true
         EntryPoints:
           - src/functions/start-processing/handler.ts
 
+  # Reads file content and calls Gemini.
   GeminiProcessDocumentFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -162,66 +170,88 @@ Resources:
       Timeout: 120
       MemorySize: 1024
       Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref DocumentsBucket
+        - Statement:
+            Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${DocumentsBucket}/*"
         - Statement:
             Effect: Allow
             Action:
               - ssm:GetParameter
-            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/docupilot/${Stage}/*"
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiApiKeyParameterName}"
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
-        Format: esm
-        Target: es2020
+        Target: es2022
+        Minify: true
+        Sourcemap: true
         EntryPoints:
           - src/functions/gemini-process-document/handler.ts
 
+  # Persists model output into DynamoDB.
   PersistResultsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: src/functions/persist-results/handler.handler
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref DocumentsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:UpdateItem
+              - dynamodb:PutItem
+            Resource: !GetAtt DocumentsTable.Arn
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
-        Format: esm
-        Target: es2020
+        Target: es2022
+        Minify: true
+        Sourcemap: true
         EntryPoints:
           - src/functions/persist-results/handler.ts
 
+  # Stores approval token/state used for human approval step.
   RecordApprovalTokenFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: src/functions/record-approval-token/handler.handler
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref DocumentsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:UpdateItem
+              - dynamodb:PutItem
+            Resource: !GetAtt DocumentsTable.Arn
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
-        Format: esm
-        Target: es2020
+        Target: es2022
+        Minify: true
+        Sourcemap: true
         EntryPoints:
           - src/functions/record-approval-token/handler.ts
 
+  # Callback endpoint for approve/reject action.
   ApproveDocumentFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: src/functions/approve-document/handler.handler
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref DocumentsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+            Resource: !GetAtt DocumentsTable.Arn
         - Statement:
             Effect: Allow
             Action:
               - states:SendTaskSuccess
               - states:SendTaskFailure
+            # Step Functions callback actions require wildcard resource.
             Resource: "*"
       Events:
         Api:
@@ -233,19 +263,25 @@ Resources:
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
-        Format: esm
-        Target: es2020
+        Target: es2022
+        Minify: true
+        Sourcemap: true
         EntryPoints:
           - src/functions/approve-document/handler.ts
 
+  # Lists documents for the dashboard.
   ListDocumentsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: src/functions/list-documents/handler.handler
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref DocumentsTable
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource: !GetAtt DocumentsTable.Arn
       Events:
         Api:
           Type: HttpApi
@@ -256,11 +292,63 @@ Resources:
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
-        Format: esm
-        Target: es2020
+        Target: es2022
+        Minify: true
+        Sourcemap: true
         EntryPoints:
           - src/functions/list-documents/handler.ts
 
+  # Returns one document by id.
+  GetDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/get-document/handler.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:Query
+            Resource: !GetAtt DocumentsTable.Arn
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DocuPilotApi
+            Path: /documents/{documentId}
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Target: es2022
+        Minify: true
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/get-document/handler.ts
+
+  # Marks processing record as failed from workflow catch path.
+  MarkFailedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/functions/mark-failed/handler.handler
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:UpdateItem
+            Resource: !GetAtt DocumentsTable.Arn
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Target: es2022
+        Minify: true
+        Sourcemap: true
+        EntryPoints:
+          - src/functions/mark-failed/handler.ts
+
+  # Orchestrates document processing lifecycle.
   DocumentProcessingStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
@@ -270,6 +358,7 @@ Resources:
         GeminiProcessDocumentFunctionArn: !GetAtt GeminiProcessDocumentFunction.Arn
         PersistResultsFunctionArn: !GetAtt PersistResultsFunction.Arn
         RecordApprovalTokenFunctionArn: !GetAtt RecordApprovalTokenFunction.Arn
+        MarkFailedFunctionArn: !GetAtt MarkFailedFunction.Arn
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref GeminiProcessDocumentFunction
@@ -277,11 +366,22 @@ Resources:
             FunctionName: !Ref PersistResultsFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref RecordApprovalTokenFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref MarkFailedFunction
 
 Outputs:
   ApiUrl:
+    Description: Base URL for DocuPilot HTTP API.
     Value: !Sub "https://${DocuPilotApi}.execute-api.${AWS::Region}.amazonaws.com"
+
   BucketName:
+    Description: Upload bucket name.
     Value: !Ref DocumentsBucket
+
   TableName:
+    Description: DynamoDB table name.
     Value: !Ref DocumentsTable
+
+  StateMachineArn:
+    Description: Step Functions state machine ARN.
+    Value: !Ref DocumentProcessingStateMachine
