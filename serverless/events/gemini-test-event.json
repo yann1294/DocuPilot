@@ -1,4 +1,7 @@
 {
+  "bucket": "REPLACE_WITH_BUCKET_NAME",
+  "key": "uploads/user_test/doc_test/sample.pdf",
+  "userId": "user_test",
   "documentId": "doc_test_123",
-  "s3Key": "uploads/doc_test_123.pdf"
+  "source": "s3:ObjectCreated"
 }

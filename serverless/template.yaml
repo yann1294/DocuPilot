@@ -410,6 +410,10 @@ Outputs:
     Description: Base URL for DocuPilot HTTP API.
     Value: !Sub "https://${DocuPilotApi}.execute-api.${AWS::Region}.amazonaws.com"
 
+  BucketName:
+    Description: Upload bucket name.
+    Value: !Ref DocumentsBucket
+
   DocumentsBucketName:
     Description: Upload bucket name.
     Value: !Ref DocumentsBucket
@@ -421,3 +425,7 @@ Outputs:
   StateMachineArn:
     Description: Step Functions state machine ARN.
     Value: !Ref DocumentProcessingStateMachine
+
+  StartProcessingFunctionName:
+    Description: Lambda function name for S3 start-processing trigger.
+    Value: !Ref StartProcessingFunction

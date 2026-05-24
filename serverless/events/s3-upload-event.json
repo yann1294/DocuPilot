@@ -1,8 +1,19 @@
 {
   "Records": [
     {
+      "eventVersion": "2.1",
       "eventSource": "aws:s3",
-      "eventName": "ObjectCreated:Put"
+      "awsRegion": "ap-south-1",
+      "eventTime": "2026-05-24T10:30:00.000Z",
+      "eventName": "ObjectCreated:Put",
+      "s3": {
+        "bucket": {
+          "name": "REPLACE_WITH_BUCKET_NAME"
+        },
+        "object": {
+          "key": "uploads/user_test/doc_test/sample.pdf"
+        }
+      }
     }
   ]
 }

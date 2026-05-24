@@ -11,6 +11,14 @@
       },
       "ResultPath": "$.gemini",
       "Next": "PersistResults",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.SdkClientException", "States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
@@ -27,24 +35,15 @@
         "Payload.$": "$"
       },
       "ResultPath": "$.persist",
-      "Next": "RecordApprovalToken",
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "ResultPath": "$.error",
-          "Next": "MarkFailed"
-        }
-      ]
-    },
-    "RecordApprovalToken": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": {
-        "FunctionName": "${RecordApprovalTokenFunctionArn}",
-        "Payload.$": "$"
-      },
-      "ResultPath": "$.approval",
       "End": true,
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.SdkClientException", "States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
