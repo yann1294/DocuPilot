@@ -1,7 +1,7 @@
 {
   "CreateUploadUrlFunction": {
-    "DOCUMENTS_BUCKET": "docupilot-dev-documentsbucket-ucm79hcjhgtr",
-    "DOCUMENTS_TABLE": "docupilot-dev-DocumentsTable-1KNJW3C0YBR56",
-    "AWS_REGION": "ap-south-1"
+    "DOCUMENTS_BUCKET": "test",
+    "DOCUMENTS_TABLE": "test",
+    "AWS_REGION": "test"
   }
 }

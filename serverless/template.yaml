@@ -205,6 +205,9 @@ Resources:
       Handler: src/functions/gemini-process-document/handler.handler
       Timeout: 120
       MemorySize: 1024
+      Environment:
+        Variables:
+          MOCK_GEMINI: "false"
       Policies:
         - Statement:
             Effect: Allow
@@ -215,7 +218,7 @@ Resources:
             Effect: Allow
             Action:
               - ssm:GetParameter
-            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiApiKeyParameterName}"
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/docupilot/${Stage}/*"
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
