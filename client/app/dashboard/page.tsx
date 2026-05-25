@@ -38,7 +38,10 @@ export default function DashboardPage() {
   }, [fetchDocuments]);
 
   const shouldPoll = useMemo(
-    () => documents.some((doc) => doc.status === "PROCESSING" || doc.status === "NEEDS_APPROVAL"),
+    () =>
+      documents.some(
+        (doc) => doc.status === "UPLOADING" || doc.status === "PROCESSING" || doc.status === "NEEDS_APPROVAL"
+      ),
     [documents]
   );
 
