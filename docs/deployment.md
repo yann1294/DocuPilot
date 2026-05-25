@@ -111,3 +111,91 @@ sam logs -n StartProcessingFunction \
   --profile docupilot-dev \
   --region ap-south-1
 ```
+
+## Observability and troubleshooting
+
+### Find CloudWatch logs
+
+Use `sam logs` for a function:
+
+```bash
+sam logs -n GeminiProcessDocumentFunction \
+  --stack-name docupilot-dev \
+  --tail \
+  --profile docupilot-dev \
+  --region ap-south-1
+```
+
+Or open CloudWatch console:
+1. Go to `CloudWatch` -> `Log groups`.
+2. Find `/aws/lambda/<function-name>`.
+3. Open latest log stream and inspect errors/warnings.
+
+### View Step Functions executions
+
+CLI:
+
+```bash
+aws stepfunctions list-executions \
+  --state-machine-arn <StateMachineArn-from-outputs> \
+  --profile docupilot-dev \
+  --region ap-south-1
+```
+
+For one execution history:
+
+```bash
+aws stepfunctions get-execution-history \
+  --execution-arn <execution-arn> \
+  --profile docupilot-dev \
+  --region ap-south-1
+```
+
+Console:
+1. Go to `Step Functions`.
+2. Open `DocumentProcessingStateMachine`.
+3. Open failed execution and inspect failed state input/output.
+
+### Inspect DynamoDB records
+
+Query all documents for one user:
+
+```bash
+aws dynamodb query \
+  --table-name <DocumentsTableName> \
+  --key-condition-expression "PK = :pk" \
+  --expression-attribute-values '{":pk":{"S":"USER#<clerk-user-id>"}}' \
+  --profile docupilot-dev \
+  --region ap-south-1
+```
+
+Get one record:
+
+```bash
+aws dynamodb get-item \
+  --table-name <DocumentsTableName> \
+  --key '{"PK":{"S":"USER#<clerk-user-id>"},"SK":{"S":"DOC#<document-id>"}}' \
+  --profile docupilot-dev \
+  --region ap-south-1
+```
+
+### Common errors and fixes
+
+- `UNAUTHORIZED` on API calls:
+  - Check Clerk token template/audience (`docupilot-api`).
+  - Confirm API request includes `Authorization: Bearer <token>`.
+
+- `ResourceNotFoundException` for DynamoDB:
+  - Verify stack outputs and env vars use correct table name and region.
+
+- Gemini failures:
+  - Confirm `GEMINI_API_KEY_PARAMETER` exists in SSM and Lambda role can read it.
+  - Check `GeminiProcessDocumentFunction` logs for schema/JSON parse errors.
+
+- Upload succeeds but no processing starts:
+  - Check EventBridge rule for S3 object-created events.
+  - Check `StartProcessingFunction` logs and `DocumentProcessingStateMachine` execution list.
+
+- Approve/Reject returns conflict:
+  - Step Functions task token may be expired/invalid or execution already finished.
+  - Check `ApproveDocumentFunction` logs and execution history for callback failures.

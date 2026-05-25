@@ -409,6 +409,162 @@ Resources:
         - LambdaInvokePolicy:
             FunctionName: !Ref MarkFailedFunction
 
+  # CloudWatch dashboard for quick operational visibility.
+  DocuPilotDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "docupilot-${Stage}"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Lambda Errors (Key Functions)",
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "metrics": [
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${CreateUploadUrlFunction}" ],
+                  [ ".", ".", "FunctionName", "${StartProcessingFunction}" ],
+                  [ ".", ".", "FunctionName", "${GeminiProcessDocumentFunction}" ],
+                  [ ".", ".", "FunctionName", "${PersistResultsFunction}" ],
+                  [ ".", ".", "FunctionName", "${ApproveDocumentFunction}" ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Step Functions ExecutionsFailed",
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "metrics": [
+                  [ "AWS/States", "ExecutionsFailed", "StateMachineArn", "${DocumentProcessingStateMachine}" ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "HTTP API 5xx",
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "metrics": [
+                  [ "AWS/ApiGateway", "5xx", "ApiId", "${DocuPilotApi}", "Stage", "$default" ]
+                ]
+              }
+            }
+          ]
+        }
+
+  # Alarm when key Lambda functions emit errors.
+  GeminiProcessDocumentErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "docupilot-${Stage}-gemini-errors"
+      AlarmDescription: !Sub "Errors > 0 for ${GeminiProcessDocumentFunction} in 5 minutes."
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GeminiProcessDocumentFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  StartProcessingErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "docupilot-${Stage}-start-processing-errors"
+      AlarmDescription: !Sub "Errors > 0 for ${StartProcessingFunction} in 5 minutes."
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref StartProcessingFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  ApproveDocumentErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "docupilot-${Stage}-approve-errors"
+      AlarmDescription: !Sub "Errors > 0 for ${ApproveDocumentFunction} in 5 minutes."
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ApproveDocumentFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  # Alarm when state machine executions fail.
+  StepFunctionsExecutionsFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "docupilot-${Stage}-stepfunctions-failed"
+      AlarmDescription: !Sub "ExecutionsFailed > 0 for ${DocumentProcessingStateMachine} in 5 minutes."
+      Namespace: AWS/States
+      MetricName: ExecutionsFailed
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref DocumentProcessingStateMachine
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  # Alarm when HTTP API returns server-side errors.
+  ApiGateway5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "docupilot-${Stage}-api-5xx"
+      AlarmDescription: "HTTP API 5xx responses > 0 in 5 minutes."
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref DocuPilotApi
+        - Name: Stage
+          Value: "$default"
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
 Outputs:
   ApiUrl:
     Description: Base URL for DocuPilot HTTP API.
