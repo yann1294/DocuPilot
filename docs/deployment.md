@@ -1,25 +1,94 @@
 # Deployment
 
-## 1) Authenticate with IAM Identity Center (AWS SSO)
+## Prerequisites
+- AWS account with permissions for SAM/CloudFormation, Lambda, API Gateway, DynamoDB, S3, Step Functions, SSM, CloudWatch, EventBridge.
+- AWS CLI v2 configured.
+- AWS SAM CLI installed.
+- Node.js 20+ and npm.
+- Clerk account and API JWT template.
+- Gemini API key.
+
+## AWS profile setup
+
+Configure a named AWS profile (example: `docupilot-dev`):
+
+```bash
+aws configure --profile docupilot-dev
+```
+
+If your org uses AWS SSO:
 
 ```bash
 aws sso login --profile docupilot-dev
 ```
 
-## 2) Deploy the SAM stack
+Validate identity:
 
-From the `serverless/` directory:
+```bash
+aws sts get-caller-identity --profile docupilot-dev
+```
+
+## Clerk setup
+
+1. In Clerk dashboard, create/get your application.
+2. Create a JWT template for backend API auth.
+3. Use audience value `docupilot-api` (must match SAM parameter `ClerkAudience`).
+4. Copy the JWT issuer URL (used as `ClerkIssuer` during deploy).
+
+You will provide these values during `sam deploy --guided`.
+
+## Gemini key in SSM
+
+Store Gemini key as SecureString in SSM Parameter Store.
+
+Example for dev stage:
+
+```bash
+aws ssm put-parameter \
+  --name /docupilot/dev/GEMINI_API_KEY \
+  --type SecureString \
+  --value "<your-gemini-api-key>" \
+  --overwrite \
+  --profile docupilot-dev \
+  --region ap-south-1
+```
+
+If using another stage, keep the same path pattern:
+- `/docupilot/<stage>/GEMINI_API_KEY`
+
+## Validate SAM template
+
+From `serverless/`:
+
+```bash
+sam validate -t template.yaml
+```
+
+## Build backend
+
+From `serverless/`:
 
 ```bash
 sam build
+```
+
+## Deploy backend
+
+From `serverless/`:
+
+```bash
 sam deploy --guided --profile docupilot-dev --region ap-south-1
 ```
 
-On first deploy, SAM will prompt for stack settings (stack name, parameter values like `ClerkIssuer` and `ClerkAudience`). Save the config when prompted.
+During guided deploy, set at least:
+- `Stage` (example: `dev`)
+- `ClerkIssuer` (from Clerk)
+- `ClerkAudience` (usually `docupilot-api`)
+- `GeminiApiKeyParameterName` (example: `/docupilot/dev/GEMINI_API_KEY`)
 
-## 3) Read stack outputs (`DocumentsBucketName`, `DocumentsTableName`, `ApiUrl`)
+Save the SAM config when prompted.
 
-Use CloudFormation to fetch outputs:
+After deploy, capture outputs:
 
 ```bash
 aws cloudformation describe-stacks \
@@ -29,173 +98,66 @@ aws cloudformation describe-stacks \
   --query "Stacks[0].Outputs"
 ```
 
-Copy:
+You need:
+- `ApiUrl`
 - `DocumentsBucketName`
 - `DocumentsTableName`
-- `ApiUrl` (for client config)
 
-## 4) Create `events/local-env.json` from the outputs
+## Client `.env.local`
 
-Copy the example file:
+In `client/.env.local`, set:
 
-```bash
-cp events/local-env.example.json events/local-env.json
+```env
+NEXT_PUBLIC_API_BASE_URL=<ApiUrl>
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<your-clerk-publishable-key>
 ```
 
-Then update values in `events/local-env.json`:
-- `DOCUMENTS_BUCKET` = `DocumentsBucketName`
-- `DOCUMENTS_TABLE` = `DocumentsTableName`
-- `AWS_REGION` = `ap-south-1`
+If your client also expects Clerk sign-in URLs/keys, include the usual Clerk env vars used by your app.
 
-## 5) Run `sam local invoke` with `--profile docupilot-dev`
+## Run frontend locally
 
-Example command for `CreateUploadUrlFunction`:
+From repo root:
 
 ```bash
-sam local invoke CreateUploadUrlFunction \
-  --event events/api-create-upload-url.json \
-  --env-vars events/local-env.json \
-  --profile docupilot-dev \
-  --region ap-south-1
+npm install
+npm run dev:client
 ```
 
-## Debug S3 to Step Functions
+Then open:
+- `http://localhost:3000`
+- Dashboard: `http://localhost:3000/dashboard`
 
-Use this flow when uploads are not starting Step Functions executions.
+## Troubleshooting
 
-1. Build and deploy:
+- `401 UNAUTHORIZED` from API:
+  - Confirm user is signed in.
+  - Confirm Clerk JWT template audience is `docupilot-api`.
+  - Confirm API request includes `Authorization: Bearer <token>`.
 
-```bash
-cd serverless
-sam build
-sam deploy --guided --profile docupilot-dev --region ap-south-1
-```
+- Upload works but status never progresses:
+  - Check S3 object path pattern is `uploads/{userId}/{documentId}/{fileName}`.
+  - Check `StartProcessingFunction` logs.
+  - Check EventBridge rule and Step Functions executions.
 
-2. Fetch stack outputs:
+- Gemini processing fails:
+  - Confirm SSM parameter exists and name matches `GeminiApiKeyParameterName`.
+  - Confirm Lambda IAM has `ssm:GetParameter` for `/docupilot/<stage>/*`.
+  - Confirm `GEMINI_MODEL` is valid (current template uses `gemini-2.5-flash`).
 
-```bash
-aws cloudformation describe-stacks \
-  --stack-name docupilot-dev \
-  --profile docupilot-dev \
-  --region ap-south-1 \
-  --query "Stacks[0].Outputs"
-```
+- Approve/Reject returns conflict (409):
+  - Task token may be expired/invalid, or workflow already finished.
+  - Check `ApproveDocumentFunction` logs and Step Functions execution history.
 
-3. Edit `events/s3-upload-event.json` and replace `REPLACE_WITH_BUCKET_NAME` with your real `BucketName` output.
+- DynamoDB record not found:
+  - Verify deployed `DocumentsTableName` and region.
+  - Verify PK/SK format: `USER#{userId}` / `DOC#{documentId}`.
 
-4. Invoke `StartProcessingFunction` locally with the S3 event:
-
-```bash
-sam local invoke StartProcessingFunction \
-  --event events/s3-upload-event.json \
-  --env-vars events/local-env.json \
-  --profile docupilot-dev \
-  --region ap-south-1
-```
-
-5. Check Step Functions executions:
-
-```bash
-aws stepfunctions list-executions \
-  --state-machine-arn <StateMachineArn-from-outputs> \
-  --profile docupilot-dev \
-  --region ap-south-1
-```
-
-6. Tail `StartProcessingFunction` logs:
-
-```bash
-sam logs -n StartProcessingFunction \
-  --stack-name docupilot-dev \
-  --tail \
-  --profile docupilot-dev \
-  --region ap-south-1
-```
-
-## Observability and troubleshooting
-
-### Find CloudWatch logs
-
-Use `sam logs` for a function:
+Useful log command:
 
 ```bash
 sam logs -n GeminiProcessDocumentFunction \
-  --stack-name docupilot-dev \
+  --stack-name <your-stack-name> \
   --tail \
   --profile docupilot-dev \
   --region ap-south-1
 ```
-
-Or open CloudWatch console:
-1. Go to `CloudWatch` -> `Log groups`.
-2. Find `/aws/lambda/<function-name>`.
-3. Open latest log stream and inspect errors/warnings.
-
-### View Step Functions executions
-
-CLI:
-
-```bash
-aws stepfunctions list-executions \
-  --state-machine-arn <StateMachineArn-from-outputs> \
-  --profile docupilot-dev \
-  --region ap-south-1
-```
-
-For one execution history:
-
-```bash
-aws stepfunctions get-execution-history \
-  --execution-arn <execution-arn> \
-  --profile docupilot-dev \
-  --region ap-south-1
-```
-
-Console:
-1. Go to `Step Functions`.
-2. Open `DocumentProcessingStateMachine`.
-3. Open failed execution and inspect failed state input/output.
-
-### Inspect DynamoDB records
-
-Query all documents for one user:
-
-```bash
-aws dynamodb query \
-  --table-name <DocumentsTableName> \
-  --key-condition-expression "PK = :pk" \
-  --expression-attribute-values '{":pk":{"S":"USER#<clerk-user-id>"}}' \
-  --profile docupilot-dev \
-  --region ap-south-1
-```
-
-Get one record:
-
-```bash
-aws dynamodb get-item \
-  --table-name <DocumentsTableName> \
-  --key '{"PK":{"S":"USER#<clerk-user-id>"},"SK":{"S":"DOC#<document-id>"}}' \
-  --profile docupilot-dev \
-  --region ap-south-1
-```
-
-### Common errors and fixes
-
-- `UNAUTHORIZED` on API calls:
-  - Check Clerk token template/audience (`docupilot-api`).
-  - Confirm API request includes `Authorization: Bearer <token>`.
-
-- `ResourceNotFoundException` for DynamoDB:
-  - Verify stack outputs and env vars use correct table name and region.
-
-- Gemini failures:
-  - Confirm `GEMINI_API_KEY_PARAMETER` exists in SSM and Lambda role can read it.
-  - Check `GeminiProcessDocumentFunction` logs for schema/JSON parse errors.
-
-- Upload succeeds but no processing starts:
-  - Check EventBridge rule for S3 object-created events.
-  - Check `StartProcessingFunction` logs and `DocumentProcessingStateMachine` execution list.
-
-- Approve/Reject returns conflict:
-  - Step Functions task token may be expired/invalid or execution already finished.
-  - Check `ApproveDocumentFunction` logs and execution history for callback failures.
