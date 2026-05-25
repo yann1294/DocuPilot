@@ -1,11 +1,9 @@
 export type DocumentStatus =
   | "UPLOADING"
   | "PROCESSING"
-  | "READY_FOR_APPROVAL"
   | "NEEDS_APPROVAL"
   | "APPROVED"
   | "REJECTED"
-  | "COMPLETED"
   | "FAILED";
 
 export interface DocumentItem {
@@ -16,6 +14,27 @@ export interface DocumentItem {
   summary: string;
   classification?: string;
   createdAt: string;
+}
+
+export interface ListDocumentsResponse {
+  documents: DocumentItem[];
+}
+
+export interface DocumentDetails {
+  documentId: string;
+  fileName: string;
+  mimeType: string;
+  status: DocumentStatus;
+  summary: string;
+  classification: string;
+  createdAt: string;
+  updatedAt?: string;
+  extractedFields?: Record<string, string>;
+  errorMessage?: string;
+}
+
+export interface GetDocumentResponse {
+  document: DocumentDetails;
 }
 
 export type UploadState = "idle" | "requesting_url" | "uploading" | "uploaded" | "error";

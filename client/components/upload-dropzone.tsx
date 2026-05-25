@@ -10,6 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const ACCEPTED_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
 
+interface UploadDropzoneProps {
+  onUploaded?: () => void;
+}
+
 const stateLabel: Record<UploadState, string> = {
   idle: "idle",
   requesting_url: "requesting upload URL",
@@ -18,7 +22,7 @@ const stateLabel: Record<UploadState, string> = {
   error: "error"
 };
 
-export function UploadDropzone() {
+export function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
   const { getToken } = useAuth();
   const [state, setState] = useState<UploadState>("idle");
   const [progress, setProgress] = useState(0);
@@ -57,6 +61,7 @@ export function UploadDropzone() {
       await uploadFileToPresignedUrl(uploadTarget.uploadUrl, file, setProgress);
       setDocumentId(uploadTarget.documentId);
       setState("uploaded");
+      onUploaded?.();
     } catch (error) {
       setState("error");
       setErrorMessage(error instanceof Error ? error.message : "Upload failed.");

@@ -22,6 +22,9 @@ export interface DocumentRecord {
   updatedAt?: string;
   extractedText?: string;
   summary?: string;
+  classification?: string;
+  extractedFields?: Record<string, string>;
+  errorMessage?: string;
   metadata?: Record<string, string>;
 }
 

@@ -1,18 +1,75 @@
-import { UserButton } from "@clerk/nextjs";
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth, UserButton } from "@clerk/nextjs";
 import { AlertCircle, CheckCircle2, FileText, Workflow } from "lucide-react";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { DocumentTable } from "@/components/document-table";
 import { ApprovalPanel } from "@/components/approval-panel";
+import { DocumentDetailsPanel } from "@/components/document-details-panel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { DocumentItem } from "@/lib/types";
-
-const documents: DocumentItem[] = [];
+import { getDocument, listDocuments } from "@/lib/api";
+import type { DocumentDetails, DocumentItem } from "@/lib/types";
 
 export default function DashboardPage() {
-  const needsApproval = documents.filter((doc) =>
-    doc.status === "NEEDS_APPROVAL" || doc.status === "READY_FOR_APPROVAL"
+  const { getToken } = useAuth();
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isDetailsLoading, setIsDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<DocumentDetails | null>(null);
+
+  const fetchDocuments = useCallback(async () => {
+    try {
+      setError(null);
+      const result = await listDocuments(getToken);
+      setDocuments(result.documents);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Failed to load documents.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    void fetchDocuments();
+  }, [fetchDocuments]);
+
+  const shouldPoll = useMemo(
+    () => documents.some((doc) => doc.status === "PROCESSING" || doc.status === "NEEDS_APPROVAL"),
+    [documents]
   );
+
+  useEffect(() => {
+    if (!shouldPoll) return;
+    const timer = window.setInterval(() => {
+      void fetchDocuments();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [fetchDocuments, shouldPoll]);
+
+  const needsApproval = documents.filter((doc) => doc.status === "NEEDS_APPROVAL");
   const failed = documents.filter((doc) => doc.status === "FAILED");
+
+  const handleViewDocument = useCallback(
+    async (documentId: string) => {
+      setIsDetailsOpen(true);
+      setIsDetailsLoading(true);
+      setDetailsError(null);
+      setSelectedDocument(null);
+      try {
+        const result = await getDocument(documentId, getToken);
+        setSelectedDocument(result.document);
+      } catch (fetchError) {
+        setDetailsError(fetchError instanceof Error ? fetchError.message : "Failed to load document details.");
+      } finally {
+        setIsDetailsLoading(false);
+      }
+    },
+    [getToken]
+  );
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -26,7 +83,7 @@ export default function DashboardPage() {
         </header>
 
         <section className="mb-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-          <UploadDropzone />
+          <UploadDropzone onUploaded={() => void fetchDocuments()} />
           <Card>
             <CardHeader>
               <div className="mb-1 flex items-center gap-2 text-indigo-700">
@@ -78,10 +135,25 @@ export default function DashboardPage() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-          <DocumentTable documents={documents} />
-          <ApprovalPanel documentsNeedingApproval={needsApproval} />
+          <div className="space-y-3">
+            {isLoading && <p className="text-sm text-slate-600">Loading documents...</p>}
+            {error && <p className="text-sm text-rose-600">{error}</p>}
+            <DocumentTable
+              documents={documents}
+              onRefresh={() => void fetchDocuments()}
+              onView={(documentId) => void handleViewDocument(documentId)}
+            />
+          </div>
+          <ApprovalPanel documentsNeedingApproval={needsApproval} onActionComplete={fetchDocuments} />
         </section>
       </div>
+      <DocumentDetailsPanel
+        isOpen={isDetailsOpen}
+        document={selectedDocument}
+        isLoading={isDetailsLoading}
+        error={detailsError}
+        onClose={() => setIsDetailsOpen(false)}
+      />
     </main>
   );
 }

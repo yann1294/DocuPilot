@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 interface DocumentTableProps {
   documents: DocumentItem[];
   onRefresh?: () => void;
+  onView?: (documentId: string) => void;
 }
 
 function formatDate(input: string): string {
@@ -15,7 +16,7 @@ function formatDate(input: string): string {
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString();
 }
 
-export function DocumentTable({ documents, onRefresh }: DocumentTableProps) {
+export function DocumentTable({ documents, onRefresh, onView }: DocumentTableProps) {
   if (documents.length === 0) {
     return (
       <Card>
@@ -25,6 +26,12 @@ export function DocumentTable({ documents, onRefresh }: DocumentTableProps) {
           </div>
           <h3 className="text-lg font-semibold text-slate-900">No documents yet</h3>
           <p className="mt-1 text-sm text-slate-600">Upload a file to populate your command center table.</p>
+          {onRefresh && (
+            <Button variant="outline" className="mt-4" onClick={onRefresh}>
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              Refresh
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -75,7 +82,11 @@ export function DocumentTable({ documents, onRefresh }: DocumentTableProps) {
                   </td>
                   <td className="px-4 py-3 text-slate-600">{formatDate(doc.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <Button variant="outline" className="h-8 px-3 py-1 text-xs">
+                    <Button
+                      variant="outline"
+                      className="h-8 px-3 py-1 text-xs"
+                      onClick={() => onView?.(doc.documentId)}
+                    >
                       <Eye className="mr-1 h-3.5 w-3.5" />
                       View
                     </Button>
