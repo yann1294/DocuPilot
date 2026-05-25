@@ -208,6 +208,7 @@ Resources:
       Environment:
         Variables:
           MOCK_GEMINI: "false"
+          GEMINI_MODEL: "gemini-2.5-flash"
       Policies:
         - Statement:
             Effect: Allow

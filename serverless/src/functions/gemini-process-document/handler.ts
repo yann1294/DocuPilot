@@ -165,8 +165,9 @@ export async function handler(event: GeminiProcessInput, context?: Context): Pro
     const base64Data = Buffer.from(bytes).toString("base64");
     const mimeType = resolveMimeType(event.key, s3Object.ContentType);
     const apiKey = await readSecureParameter(getRequiredEnv("GEMINI_API_KEY_PARAMETER"));
+    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     const response = await model.generateContent([
       buildPrompt(),
