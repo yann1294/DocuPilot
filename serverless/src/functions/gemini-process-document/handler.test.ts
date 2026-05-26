@@ -1,10 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockS3Send = vi.fn();
-const mockReadSecureParameter = vi.fn();
-const mockGenerateContent = vi.fn();
-const mockGetGenerativeModel = vi.fn(() => ({ generateContent: mockGenerateContent }));
-const mockGoogleGenerativeAI = vi.fn(() => ({ getGenerativeModel: mockGetGenerativeModel }));
+const {
+  mockS3Send,
+  mockReadSecureParameter,
+  mockGenerateContent,
+  mockGetGenerativeModel,
+  mockGoogleGenerativeAI
+} = vi.hoisted(() => {
+  const generateContent = vi.fn();
+  const getGenerativeModel = vi.fn(() => ({ generateContent }));
+  const googleGenerativeAI = vi.fn(() => ({ getGenerativeModel }));
+
+  return {
+    mockS3Send: vi.fn(),
+    mockReadSecureParameter: vi.fn(),
+    mockGenerateContent: generateContent,
+    mockGetGenerativeModel: getGenerativeModel,
+    mockGoogleGenerativeAI: googleGenerativeAI
+  };
+});
 
 vi.mock("../../shared/s3", () => ({
   s3: {
