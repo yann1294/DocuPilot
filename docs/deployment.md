@@ -4,9 +4,18 @@
 - AWS account with permissions for SAM/CloudFormation, Lambda, API Gateway, DynamoDB, S3, Step Functions, SSM, CloudWatch, EventBridge.
 - AWS CLI v2 configured.
 - AWS SAM CLI installed.
-- Node.js 20+ and npm.
+- Node.js 22+ and npm.
 - Clerk account and API JWT template.
 - Gemini API key.
+
+## Runtime upgrade note
+
+DocuPilot originally targeted AWS Lambda `nodejs20.x`. The backend template was upgraded to `nodejs22.x` because Node.js 20 is deprecated in AWS Lambda.
+
+Compatibility notes for Node.js 22:
+- `esbuild` target remains `es2022` and is fully compatible.
+- AWS SDK v3 packages used in this project are compatible with Node.js 22.
+- If you see native dependency issues locally, remove `node_modules` and reinstall for your current Node version.
 
 ## AWS profile setup
 

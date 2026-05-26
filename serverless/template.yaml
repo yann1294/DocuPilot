@@ -23,8 +23,8 @@ Parameters:
 
 Globals:
   Function:
-    # Keep nodejs20.x for now. If your region/account rejects it, switch to nodejs22.x.
-    Runtime: nodejs20.x
+    # Runtime upgraded from nodejs20.x to nodejs22.x because Node.js 20 is deprecated in AWS Lambda.
+    Runtime: nodejs22.x
     Architectures:
       - arm64
     Timeout: 30
