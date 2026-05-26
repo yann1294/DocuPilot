@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 
-const mockDdbSend = vi.fn();
+const { mockDdbSend } = vi.hoisted(() => ({
+  mockDdbSend: vi.fn()
+}));
 
 vi.mock("../../shared/ddb", () => ({
   ddb: {
