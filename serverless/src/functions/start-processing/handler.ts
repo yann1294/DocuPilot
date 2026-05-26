@@ -1,8 +1,11 @@
 import type { EventBridgeEvent, S3Event } from "aws-lambda";
 import { SFNClient, StartExecutionCommand } from "@aws-sdk/client-sfn";
+import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb } from "../../shared/ddb";
 
 const sfn = new SFNClient({});
 const STATE_MACHINE_ARN = process.env.STATE_MACHINE_ARN;
+const DOCUMENTS_TABLE = process.env.DOCUMENTS_TABLE;
 
 type StartProcessingEvent = S3Event | EventBridgeEvent<"Object Created", unknown>;
 
@@ -34,6 +37,9 @@ export async function handler(event: StartProcessingEvent) {
   if (!STATE_MACHINE_ARN) {
     throw new Error("Missing STATE_MACHINE_ARN environment variable");
   }
+  if (!DOCUMENTS_TABLE) {
+    throw new Error("Missing DOCUMENTS_TABLE environment variable");
+  }
 
   for (const record of getRecords(event)) {
     const bucket = record.bucket;
@@ -54,6 +60,7 @@ export async function handler(event: StartProcessingEvent) {
 
     const userId = parts[1];
     const documentId = parts[2];
+    const now = new Date().toISOString();
 
     console.log("Processing S3 record", {
       bucket,
@@ -72,6 +79,38 @@ export async function handler(event: StartProcessingEvent) {
     });
 
     try {
+      await ddb.send(
+        new UpdateCommand({
+          TableName: DOCUMENTS_TABLE,
+          Key: {
+            PK: `USER#${userId}`,
+            SK: `DOC#${documentId}`
+          },
+          UpdateExpression:
+            "SET #status = :status, updatedAt = :updatedAt, documentEvents = list_append(if_not_exists(documentEvents, :empty), :events)",
+          ExpressionAttributeNames: {
+            "#status": "status"
+          },
+          ExpressionAttributeValues: {
+            ":status": "PROCESSING",
+            ":updatedAt": now,
+            ":empty": [],
+            ":events": [
+              {
+                type: "FILE_UPLOADED",
+                at: now,
+                message: "File upload completed and S3 object created."
+              },
+              {
+                type: "PROCESSING_STARTED",
+                at: now,
+                message: "Processing workflow started."
+              }
+            ]
+          }
+        })
+      );
+
       const result = await sfn.send(
         new StartExecutionCommand({
           stateMachineArn: STATE_MACHINE_ARN,
@@ -82,7 +121,7 @@ export async function handler(event: StartProcessingEvent) {
             userId,
             documentId,
             source: "s3:ObjectCreated",
-            startedAt: new Date().toISOString()
+            startedAt: now
           })
         })
       );

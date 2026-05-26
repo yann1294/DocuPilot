@@ -83,6 +83,26 @@ export function DocumentDetailsPanel({ isOpen, document, isLoading, error, onClo
                 )}
               </section>
 
+              <section className="space-y-2 rounded-xl border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Audit Timeline</h3>
+                {document.documentEvents.length > 0 ? (
+                  <ol className="space-y-2">
+                    {document.documentEvents
+                      .slice()
+                      .sort((a, b) => a.at.localeCompare(b.at))
+                      .map((event, idx) => (
+                        <li key={`${event.type}-${event.at}-${idx}`} className="rounded-lg bg-slate-50 px-3 py-2">
+                          <p className="text-xs font-semibold tracking-wide text-slate-800">{event.type.replaceAll("_", " ")}</p>
+                          <p className="text-xs text-slate-500">{formatDate(event.at)}</p>
+                          {event.message && <p className="mt-1 text-sm text-slate-700">{event.message}</p>}
+                        </li>
+                      ))}
+                  </ol>
+                ) : (
+                  <p className="text-sm text-slate-600">No audit events recorded yet.</p>
+                )}
+              </section>
+
               {document.errorMessage && (
                 <section className="space-y-2 rounded-xl border border-rose-200 bg-rose-50 p-4">
                   <h3 className="text-sm font-semibold text-rose-900">Error</h3>

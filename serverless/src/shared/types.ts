@@ -12,6 +12,22 @@ export const DOCUMENT_STATUSES = [
 
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 
+export type DocumentEventType =
+  | "UPLOAD_REQUESTED"
+  | "FILE_UPLOADED"
+  | "PROCESSING_STARTED"
+  | "AI_COMPLETED"
+  | "APPROVAL_REQUESTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "FAILED";
+
+export interface DocumentEvent {
+  type: DocumentEventType;
+  at: string;
+  message?: string;
+}
+
 export interface DocumentRecord {
   PK: string;
   SK: string;
@@ -28,6 +44,7 @@ export interface DocumentRecord {
   errorMessage?: string;
   taskToken?: string;
   approvalRequestedAt?: string;
+  documentEvents?: DocumentEvent[];
   metadata?: Record<string, string>;
 }
 

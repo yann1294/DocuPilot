@@ -38,7 +38,7 @@ export const handler = async (input: RecordApprovalTokenInput): Promise<{ ok: bo
         SK: `DOC#${input.documentId}`
       },
       UpdateExpression:
-        "SET #status = :status, taskToken = :taskToken, approvalRequestedAt = :approvalRequestedAt, updatedAt = :updatedAt",
+        "SET #status = :status, taskToken = :taskToken, approvalRequestedAt = :approvalRequestedAt, updatedAt = :updatedAt, documentEvents = list_append(if_not_exists(documentEvents, :empty), :events)",
       ExpressionAttributeNames: {
         "#status": "status"
       },
@@ -46,7 +46,15 @@ export const handler = async (input: RecordApprovalTokenInput): Promise<{ ok: bo
         ":status": "NEEDS_APPROVAL",
         ":taskToken": input.taskToken,
         ":approvalRequestedAt": now,
-        ":updatedAt": now
+        ":updatedAt": now,
+        ":empty": [],
+        ":events": [
+          {
+            type: "APPROVAL_REQUESTED",
+            at: now,
+            message: "Waiting for manual approval."
+          }
+        ]
       }
     })
   );

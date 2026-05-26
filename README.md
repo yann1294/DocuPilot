@@ -3,7 +3,7 @@
 A serverless, production-style document processing system that combines AI extraction with human approval. Users upload files directly to S3, workflows run asynchronously on AWS, and the dashboard tracks every state from upload to final approval.
 
 ## Live Demo
-- Frontend: `<ADD_VERCEL_URL>`
+- Frontend: `https://docu-pilot-client.vercel.app/`
 - Demo video: `<ADD_LOOM_OR_YOUTUBE_LINK>`
 
 ## Product Preview
@@ -48,6 +48,7 @@ flowchart LR
 - Gemini-powered extraction (summary, classification, extracted fields).
 - Human-in-the-loop approval queue with explicit callback handling.
 - Real-time-ish status updates via dashboard polling.
+- Per-document audit timeline (upload, processing, approval, failure events).
 - CloudWatch dashboard + alarms for Lambda, Step Functions, and API 5xx.
 
 ## Tech Stack

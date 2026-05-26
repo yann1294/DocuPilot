@@ -8,7 +8,7 @@ import { getClerkUserId } from "../../shared/auth";
 import { ddb } from "../../shared/ddb";
 import { errorResponse, json } from "../../shared/response";
 import { s3 } from "../../shared/s3";
-import type { DocumentRecord } from "../../shared/types";
+import type { DocumentEvent, DocumentRecord } from "../../shared/types";
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -87,6 +87,13 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
       key: fileKey,
       createdAt: now,
       updatedAt: now,
+      documentEvents: [
+        {
+          type: "UPLOAD_REQUESTED",
+          at: now,
+          message: "Upload URL generated."
+        } satisfies DocumentEvent
+      ],
       metadata: {
         fileName: safeFileName,
         mimeType,

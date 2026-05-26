@@ -192,14 +192,22 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
           SK: `DOC#${documentId}`
         },
         UpdateExpression:
-          "SET #status = :status, updatedAt = :updatedAt, approvalComment = :approvalComment REMOVE taskToken",
+          "SET #status = :status, updatedAt = :updatedAt, approvalComment = :approvalComment, documentEvents = list_append(if_not_exists(documentEvents, :empty), :events) REMOVE taskToken",
         ExpressionAttributeNames: {
           "#status": "status"
         },
         ExpressionAttributeValues: {
           ":status": finalStatus,
           ":updatedAt": new Date().toISOString(),
-          ":approvalComment": payload.comment ?? ""
+          ":approvalComment": payload.comment ?? "",
+          ":empty": [],
+          ":events": [
+            {
+              type: finalStatus,
+              at: new Date().toISOString(),
+              message: payload.comment ?? `Document ${finalStatus.toLowerCase()} by reviewer.`
+            }
+          ]
         }
       })
     );

@@ -3,7 +3,7 @@ import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb } from "../../shared/ddb";
 import { requireClerkUserId } from "../../shared/auth";
 import { errorResponse, json } from "../../shared/response";
-import type { DocumentRecord, DocumentStatus } from "../../shared/types";
+import type { DocumentEvent, DocumentRecord, DocumentStatus } from "../../shared/types";
 
 interface GetDocumentResponse {
   document: {
@@ -18,6 +18,7 @@ interface GetDocumentResponse {
     updatedAt?: string;
     extractedFields?: Record<string, string | null>;
     errorMessage?: string;
+    documentEvents: DocumentEvent[];
   };
 }
 
@@ -64,7 +65,8 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
         extractedFields: item.extractedFields,
-        errorMessage: item.errorMessage
+        errorMessage: item.errorMessage,
+        documentEvents: item.documentEvents ?? []
       }
     });
   } catch (error) {

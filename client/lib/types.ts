@@ -7,6 +7,22 @@ export type DocumentStatus =
   | "REJECTED"
   | "FAILED";
 
+export type DocumentEventType =
+  | "UPLOAD_REQUESTED"
+  | "FILE_UPLOADED"
+  | "PROCESSING_STARTED"
+  | "AI_COMPLETED"
+  | "APPROVAL_REQUESTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "FAILED";
+
+export interface DocumentEvent {
+  type: DocumentEventType;
+  at: string;
+  message?: string;
+}
+
 export interface DocumentItem {
   documentId: string;
   fileName: string;
@@ -34,6 +50,7 @@ export interface DocumentDetails {
   updatedAt?: string;
   extractedFields?: Record<string, string | null>;
   errorMessage?: string;
+  documentEvents: DocumentEvent[];
 }
 
 export interface GetDocumentResponse {

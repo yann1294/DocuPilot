@@ -25,6 +25,7 @@ export async function handler(event: FailedInput): Promise<{ ok: boolean; docume
 
   const tableName = readTableName();
   const errorMessage = event.error?.Cause || event.error?.Error || "Unknown processing error";
+  const now = new Date().toISOString();
 
   await ddb.send(
     new UpdateCommand({
@@ -33,14 +34,23 @@ export async function handler(event: FailedInput): Promise<{ ok: boolean; docume
         PK: `USER#${event.userId}`,
         SK: `DOC#${event.documentId}`
       },
-      UpdateExpression: "SET #status = :status, errorMessage = :errorMessage, updatedAt = :updatedAt",
+      UpdateExpression:
+        "SET #status = :status, errorMessage = :errorMessage, updatedAt = :updatedAt, documentEvents = list_append(if_not_exists(documentEvents, :empty), :events)",
       ExpressionAttributeNames: {
         "#status": "status"
       },
       ExpressionAttributeValues: {
         ":status": "FAILED",
         ":errorMessage": errorMessage,
-        ":updatedAt": new Date().toISOString()
+        ":updatedAt": now,
+        ":empty": [],
+        ":events": [
+          {
+            type: "FAILED",
+            at: now,
+            message: errorMessage
+          }
+        ]
       }
     })
   );

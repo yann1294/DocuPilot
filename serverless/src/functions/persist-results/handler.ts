@@ -57,7 +57,7 @@ export async function handler(event: PersistInput): Promise<{ ok: boolean; docum
         SK: `DOC#${event.documentId}`
       },
       UpdateExpression:
-        "SET #status = :status, summary = :summary, classification = :classification, extractedText = :extractedText, extractedFields = :extractedFields, updatedAt = :updatedAt",
+        "SET #status = :status, summary = :summary, classification = :classification, extractedText = :extractedText, extractedFields = :extractedFields, updatedAt = :updatedAt, documentEvents = list_append(if_not_exists(documentEvents, :empty), :events)",
       ExpressionAttributeNames: {
         "#status": "status"
       },
@@ -67,7 +67,15 @@ export async function handler(event: PersistInput): Promise<{ ok: boolean; docum
         ":classification": classification,
         ":extractedText": extractedText,
         ":extractedFields": extractedFields,
-        ":updatedAt": new Date().toISOString()
+        ":updatedAt": new Date().toISOString(),
+        ":empty": [],
+        ":events": [
+          {
+            type: "AI_COMPLETED",
+            at: new Date().toISOString(),
+            message: "AI extraction completed."
+          }
+        ]
       }
     })
   );

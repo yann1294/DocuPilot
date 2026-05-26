@@ -1,7 +1,7 @@
 # Architecture
 
 ## Overview
-DocuPilot is a serverless document pipeline on AWS with a Next.js frontend. Users upload documents directly to S3 using pre-signed URLs, processing is orchestrated by Step Functions, AI extraction is handled by Gemini through Lambda, and final review happens in an approval queue. DynamoDB stores the full document lifecycle in a single table design.
+DocuPilot is a serverless document pipeline on AWS with a Next.js frontend. Users upload documents directly to S3 using pre-signed URLs, processing is orchestrated by Step Functions, AI extraction is handled by Gemini through Lambda, and final review happens in an approval queue. DynamoDB stores the full document lifecycle in a single table design, including an append-only audit timeline (`documentEvents`) per document.
 
 ## Architecture Diagram
 ```mermaid
@@ -42,7 +42,7 @@ flowchart LR
 - **S3**: Durable storage for original uploaded documents.
 - **EventBridge**: Routes S3 object-created events to processing start Lambda.
 - **Step Functions**: Workflow orchestration for processing steps, retries, and failure transitions.
-- **DynamoDB**: Single-table persistence for document metadata, status, and extracted results.
+- **DynamoDB**: Single-table persistence for document metadata, status, extracted results, and audit timeline events.
 - **SSM Parameter Store (SecureString)**: Stores Gemini API key and injects secure runtime access.
 - **CloudWatch**: Logs, alarms, and dashboard for ops visibility.
 
@@ -51,6 +51,7 @@ flowchart LR
 2. `CreateUploadUrl` validates input, creates `documentId`, writes initial DynamoDB record (`UPLOADING`), and returns pre-signed S3 URL.
 3. Browser uploads file directly to S3 (backend not in file transfer path).
 4. S3 object creation event triggers EventBridge rule.
+5. Document audit event is recorded: `UPLOAD_REQUESTED`, then `FILE_UPLOADED`.
 
 ## Processing Flow
 1. EventBridge invokes `StartProcessing` Lambda.
@@ -59,8 +60,9 @@ flowchart LR
    - Reads file from S3.
    - Reads Gemini API key from SSM.
    - Sends document to Gemini and validates strict JSON output with Zod.
-4. State machine invokes `PersistResults` to store summary/classification/extracted fields and sets status to `NEEDS_APPROVAL`.
-5. If any processing state fails, catch path invokes `MarkFailed` and status becomes `FAILED`.
+4. State machine invokes `PersistResults` to store summary/classification/extracted fields and sets status to `AI_COMPLETED`.
+5. State machine stores callback token via `RecordApprovalToken`, transitions status to `NEEDS_APPROVAL`, and records `APPROVAL_REQUESTED`.
+6. If any processing state fails, catch path invokes `MarkFailed` and status becomes `FAILED`.
 
 ## Approval Flow
 1. Dashboard polls `/documents` and derives approval queue from `status === NEEDS_APPROVAL`.
@@ -68,6 +70,7 @@ flowchart LR
 3. Frontend sends `POST /documents/{documentId}/approval`.
 4. `ApproveDocument` Lambda verifies ownership and current status, optionally sends Step Functions task callback if token exists, and updates DynamoDB status to `APPROVED` or `REJECTED`.
 5. Frontend refetches documents and updates queue immediately.
+6. Approval decisions are recorded in timeline events (`APPROVED` / `REJECTED`).
 
 ## DynamoDB Single-Table Design
 - **Table keys**:
@@ -77,6 +80,7 @@ flowchart LR
   - `status`, `bucket`, `key`, `createdAt`, `updatedAt`
   - `summary`, `classification`, `extractedText`, `extractedFields`
   - `approvalComment`, `errorMessage`, optional `taskToken`
+  - `documentEvents` (ordered lifecycle audit entries)
 - **Access patterns**:
   - List documents for user: `Query PK = USER#{userId}`
   - Get one document: `GetItem PK + SK`
