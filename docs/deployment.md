@@ -123,6 +123,9 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=<your-clerk-publishable-key>
 
 If your client also expects Clerk sign-in URLs/keys, include the usual Clerk env vars used by your app.
 
+Required vars are documented in:
+- `client/.env.local.example`
+
 ## Run frontend locally
 
 From repo root:
@@ -135,6 +138,40 @@ npm run dev:client
 Then open:
 - `http://localhost:3000`
 - Dashboard: `http://localhost:3000/dashboard`
+
+## Deploy client to Vercel (production)
+
+1. Push code to GitHub.
+2. In Vercel, import the repository and select the `client/` directory as the project root.
+3. Framework preset: Next.js.
+4. Add environment variables in Vercel project settings:
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+   - `CLERK_SECRET_KEY`
+   - `NEXT_PUBLIC_API_BASE_URL`
+5. Deploy.
+
+After deploy:
+- Confirm `/` redirects authenticated users to `/dashboard`.
+- Confirm dashboard API calls go to your deployed API Gateway URL (not localhost).
+
+## Production checklist
+
+- Clerk keys:
+  - Use production Clerk keys in Vercel (`pk_live_...`, `sk_live_...`) for production environment.
+  - Keep test keys only in preview/dev environments.
+
+- API base URL:
+  - `NEXT_PUBLIC_API_BASE_URL` must point to deployed API Gateway base URL.
+  - Use HTTPS URL and no trailing slash.
+  - Verify browser Network tab requests hit this domain.
+
+- Clerk allowed redirect URLs:
+  - In Clerk dashboard, add your Vercel domain(s) to allowed redirect/callback URLs:
+    - `https://<your-app>.vercel.app/sign-in`
+    - `https://<your-app>.vercel.app/sign-up`
+    - `https://<your-custom-domain>/sign-in` (if custom domain)
+    - `https://<your-custom-domain>/sign-up` (if custom domain)
+  - Also configure allowed origins/domain settings to include your production frontend domain.
 
 ## Troubleshooting
 
