@@ -4,4 +4,5 @@ dist/
 .aws-sam/
 .env
 .env.local
+local-env.json
 .DS_Store
