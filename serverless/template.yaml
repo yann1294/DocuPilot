@@ -50,6 +50,7 @@ Resources:
           - AllowedMethods: [PUT, GET, HEAD]
             AllowedOrigins:
               - "http://localhost:3000"
+              - "https://docu-pilot-client.vercel.app"
               - "https://docu-pilot-client-git-main-yann1294s-projects.vercel.app"
               - "https://docu-pilot-client-l4s6rd6ks-yann1294s-projects.vercel.app"
               - "https://docu-pilot-client-maeew3ae1-yann1294s-projects.vercel.app/dashboard"
