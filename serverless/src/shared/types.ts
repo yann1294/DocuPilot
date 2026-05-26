@@ -2,6 +2,7 @@ export const DOCUMENT_STATUSES = [
   "UPLOADING",
   "UPLOADED",
   "PROCESSING",
+  "AI_COMPLETED",
   "NEEDS_APPROVAL",
   "READY_FOR_APPROVAL",
   "APPROVED",
@@ -25,6 +26,8 @@ export interface DocumentRecord {
   classification?: string;
   extractedFields?: Record<string, string>;
   errorMessage?: string;
+  taskToken?: string;
+  approvalRequestedAt?: string;
   metadata?: Record<string, string>;
 }
 

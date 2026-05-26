@@ -8,6 +8,7 @@ interface StatusBadgeProps {
 const statusStyles: Record<DocumentStatus, string> = {
   UPLOADING: "bg-slate-100 text-slate-700",
   PROCESSING: "bg-blue-100 text-blue-700",
+  AI_COMPLETED: "bg-cyan-100 text-cyan-700",
   NEEDS_APPROVAL: "bg-amber-100 text-amber-700",
   APPROVED: "bg-emerald-100 text-emerald-700",
   REJECTED: "bg-rose-100 text-rose-700",

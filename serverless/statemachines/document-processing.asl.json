@@ -35,7 +35,7 @@
         "Payload.$": "$"
       },
       "ResultPath": "$.persist",
-      "End": true,
+      "Next": "WaitForApproval",
       "Retry": [
         {
           "ErrorEquals": ["Lambda.ServiceException", "Lambda.SdkClientException", "States.TaskFailed"],
@@ -51,6 +51,42 @@
           "Next": "MarkFailed"
         }
       ]
+    },
+    "WaitForApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${RecordApprovalTokenFunctionArn}",
+        "Payload": {
+          "bucket.$": "$.bucket",
+          "key.$": "$.key",
+          "userId.$": "$.userId",
+          "documentId.$": "$.documentId",
+          "taskToken.$": "$$.Task.Token"
+        }
+      },
+      "ResultPath": "$.approval",
+      "Next": "ApprovalCompleted",
+      "Catch": [
+        {
+          "ErrorEquals": ["DocumentRejected", "States.TaskFailed"],
+          "ResultPath": "$.approvalError",
+          "Next": "ApprovalRejected"
+        },
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "MarkFailed"
+        }
+      ]
+    },
+    "ApprovalCompleted": {
+      "Type": "Pass",
+      "End": true
+    },
+    "ApprovalRejected": {
+      "Type": "Pass",
+      "End": true
     },
     "MarkFailed": {
       "Type": "Task",

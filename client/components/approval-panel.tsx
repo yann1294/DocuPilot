@@ -82,23 +82,29 @@ export function ApprovalPanel({ documentsNeedingApproval, onActionComplete }: Ap
               </Badge>
             </div>
             <div className="flex gap-2">
-              <Button
-                className="h-8 px-3 py-1 text-xs"
-                onClick={() => void onDecision(doc.documentId, true)}
-                disabled={pendingDocumentId === doc.documentId}
-              >
-                <Check className="mr-1 h-3.5 w-3.5" />
-                {pendingDocumentId === doc.documentId ? "Saving..." : "Approve"}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-8 px-3 py-1 text-xs"
-                onClick={() => void onDecision(doc.documentId, false)}
-                disabled={pendingDocumentId === doc.documentId}
-              >
-                <X className="mr-1 h-3.5 w-3.5" />
-                Reject
-              </Button>
+              {doc.status === "NEEDS_APPROVAL" && doc.approvalReady ? (
+                <>
+                  <Button
+                    className="h-8 px-3 py-1 text-xs"
+                    onClick={() => void onDecision(doc.documentId, true)}
+                    disabled={pendingDocumentId === doc.documentId}
+                  >
+                    <Check className="mr-1 h-3.5 w-3.5" />
+                    {pendingDocumentId === doc.documentId ? "Saving..." : "Approve"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-8 px-3 py-1 text-xs"
+                    onClick={() => void onDecision(doc.documentId, false)}
+                    disabled={pendingDocumentId === doc.documentId}
+                  >
+                    <X className="mr-1 h-3.5 w-3.5" />
+                    Reject
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-amber-700">Approval is not ready yet. Refresh in a few seconds.</p>
+              )}
             </div>
           </div>
         ))}

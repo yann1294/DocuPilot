@@ -8,23 +8,27 @@ interface PersistInput {
     Payload?: {
       summary?: string;
       classification?: string;
+      extractedText?: string;
       extractedFields?: Record<string, string>;
     };
   };
   summary?: string;
   classification?: string;
+  extractedText?: string;
   extractedFields?: Record<string, string>;
 }
 
 function coalesceResult(event: PersistInput): {
   summary: string;
   classification: string;
+  extractedText: string;
   extractedFields: Record<string, string>;
 } {
   const payload = event.gemini?.Payload;
   return {
     summary: payload?.summary ?? event.summary ?? "",
     classification: payload?.classification ?? event.classification ?? "UNCLASSIFIED",
+    extractedText: payload?.extractedText ?? event.extractedText ?? "",
     extractedFields: payload?.extractedFields ?? event.extractedFields ?? {}
   };
 }
@@ -42,7 +46,7 @@ export async function handler(event: PersistInput): Promise<{ ok: boolean; docum
     throw new Error("userId and documentId are required");
   }
 
-  const { summary, classification, extractedFields } = coalesceResult(event);
+  const { summary, classification, extractedText, extractedFields } = coalesceResult(event);
   const tableName = readTableName();
 
   await ddb.send(
@@ -53,14 +57,15 @@ export async function handler(event: PersistInput): Promise<{ ok: boolean; docum
         SK: `DOC#${event.documentId}`
       },
       UpdateExpression:
-        "SET #status = :status, summary = :summary, classification = :classification, extractedFields = :extractedFields, updatedAt = :updatedAt",
+        "SET #status = :status, summary = :summary, classification = :classification, extractedText = :extractedText, extractedFields = :extractedFields, updatedAt = :updatedAt",
       ExpressionAttributeNames: {
         "#status": "status"
       },
       ExpressionAttributeValues: {
-        ":status": "NEEDS_APPROVAL",
+        ":status": "AI_COMPLETED",
         ":summary": summary,
         ":classification": classification,
+        ":extractedText": extractedText,
         ":extractedFields": extractedFields,
         ":updatedAt": new Date().toISOString()
       }

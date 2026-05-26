@@ -1,6 +1,7 @@
 export type DocumentStatus =
   | "UPLOADING"
   | "PROCESSING"
+  | "AI_COMPLETED"
   | "NEEDS_APPROVAL"
   | "APPROVED"
   | "REJECTED"
@@ -11,6 +12,7 @@ export interface DocumentItem {
   fileName: string;
   mimeType: string;
   status: DocumentStatus;
+  approvalReady: boolean;
   summary: string;
   classification?: string;
   createdAt: string;
@@ -25,6 +27,7 @@ export interface DocumentDetails {
   fileName: string;
   mimeType: string;
   status: DocumentStatus;
+  approvalReady: boolean;
   summary: string;
   classification: string;
   createdAt: string;

@@ -10,6 +10,7 @@ interface ListedDocument {
   fileName: string;
   mimeType: string;
   status: DocumentStatus;
+  approvalReady: boolean;
   summary: string;
   classification: string;
   createdAt: string;
@@ -33,6 +34,7 @@ function toListedDocument(item: DocumentRecord): ListedDocument {
     fileName: item.metadata?.fileName ?? item.key.split("/").pop() ?? "unknown",
     mimeType: item.metadata?.mimeType ?? "application/octet-stream",
     status: item.status,
+    approvalReady: item.status === "NEEDS_APPROVAL" && Boolean(item.taskToken),
     summary: item.summary ?? "",
     classification: item.classification ?? "",
     createdAt: item.createdAt
