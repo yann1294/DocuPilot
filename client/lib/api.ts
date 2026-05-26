@@ -9,6 +9,16 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 type GetToken = (options: { template: "docupilot-api" }) => Promise<string | null>;
 
+export class ApiRequestError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+  }
+}
+
 function getApiBaseUrl(): string {
   if (!API_BASE_URL) {
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not set.");
@@ -107,16 +117,22 @@ export async function approveDocument(
   });
 
   if (!response.ok) {
+    const raw = await response.text();
     let message = "Failed to update approval status.";
+
     try {
-      const payload = (await response.json()) as { error?: { message?: string } };
+      const payload = JSON.parse(raw) as { error?: { message?: string }; message?: string };
       if (payload?.error?.message) {
         message = payload.error.message;
+      } else if (payload?.message) {
+        message = payload.message;
       }
     } catch {
-      // Use fallback message.
+      if (raw.trim().length > 0) {
+        message = raw;
+      }
     }
-    throw new Error(message);
+    throw new ApiRequestError(response.status, message);
   }
 
   return (await response.json()) as { documentId: string; status: "APPROVED" | "REJECTED" };

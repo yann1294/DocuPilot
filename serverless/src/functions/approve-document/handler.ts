@@ -13,6 +13,18 @@ interface ApproveRequestBody {
   comment?: string;
 }
 
+function callbackRejectedByStepFunctions(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return (
+    error.name === "InvalidToken" ||
+    error.name === "TaskTimedOut" ||
+    error.name === "TaskDoesNotExist" ||
+    error.name === "InvalidOutput"
+  );
+}
+
 function readTableName(): string {
   const tableName = process.env.DOCUMENTS_TABLE;
   if (!tableName) {
@@ -56,7 +68,18 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
 
     const item = result.Item as (DocumentRecord & { taskToken?: string; approvalComment?: string }) | undefined;
     if (!item) {
-      return errorResponse(404, "NOT_FOUND", "Document not found.");
+      console.warn("approve-document conflict: document not found", {
+        documentId,
+        userId,
+        currentStatus: null,
+        hasTaskToken: false,
+        callbackAttempted: false
+      });
+      return errorResponse(
+        409,
+        "APPROVAL_DOCUMENT_NOT_FOUND",
+        "Approval conflict: document not found for this user."
+      );
     }
 
     const previousStatus = item.status;
@@ -65,16 +88,39 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
       documentId,
       userId,
       approved: payload.approved,
-      previousStatus,
-      finalStatus
+      currentStatus: previousStatus,
+      finalStatus,
+      hasTaskToken: Boolean(item.taskToken),
+      callbackAttempted: false
     });
 
     if (previousStatus !== "NEEDS_APPROVAL") {
-      return errorResponse(409, "INVALID_STATUS", "Document is not waiting for approval.");
+      console.warn("approve-document conflict: invalid current status", {
+        documentId,
+        userId,
+        currentStatus: previousStatus,
+        hasTaskToken: Boolean(item.taskToken),
+        callbackAttempted: false
+      });
+      return errorResponse(
+        409,
+        "APPROVAL_INVALID_STATUS",
+        "Approval conflict: document status is not NEEDS_APPROVAL."
+      );
     }
 
     if (item.taskToken) {
       try {
+        const callbackType = payload.approved ? "SendTaskSuccess" : "SendTaskFailure";
+        console.info("approve-document attempting Step Functions callback", {
+          documentId,
+          userId,
+          currentStatus: previousStatus,
+          hasTaskToken: true,
+          callbackAttempted: true,
+          callbackType
+        });
+
         if (payload.approved) {
           await sfn.send(
             new SendTaskSuccessCommand({
@@ -95,29 +141,46 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
           );
         }
       } catch (error) {
+        if (callbackRejectedByStepFunctions(error)) {
+          console.error("approve-document conflict: Step Functions rejected callback", {
+            documentId,
+            userId,
+            currentStatus: previousStatus,
+            hasTaskToken: true,
+            callbackAttempted: true,
+            callbackType: payload.approved ? "SendTaskSuccess" : "SendTaskFailure",
+            error: error instanceof Error ? { name: error.name, message: error.message } : error
+          });
+          return errorResponse(
+            409,
+            "APPROVAL_CALLBACK_REJECTED",
+            "Approval conflict: Step Functions rejected the callback (token invalid, timed out, or task already closed)."
+          );
+        }
+
         console.error("approve-document step-functions callback failed", {
           documentId,
           userId,
-          approved: payload.approved,
-          error
+          currentStatus: previousStatus,
+          hasTaskToken: true,
+          callbackAttempted: true,
+          callbackType: payload.approved ? "SendTaskSuccess" : "SendTaskFailure",
+          error: error instanceof Error ? { name: error.name, message: error.message } : error
         });
-        return errorResponse(
-          409,
-          "APPROVAL_CALLBACK_CONFLICT",
-          "Could not complete approval callback. The workflow may have already ended or task token is invalid."
-        );
+        throw error;
       }
     } else {
-      console.error("approve-document missing taskToken", {
+      console.warn("approve-document conflict: missing taskToken", {
         documentId,
         userId,
-        approved: payload.approved,
-        previousStatus
+        currentStatus: previousStatus,
+        hasTaskToken: false,
+        callbackAttempted: false
       });
       return errorResponse(
         409,
-        "APPROVAL_CALLBACK_CONFLICT",
-        "Could not complete approval callback. The workflow may have already ended or task token is invalid."
+        "APPROVAL_MISSING_TASK_TOKEN",
+        "Approval conflict: document has no active task token."
       );
     }
 
@@ -144,8 +207,10 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
     console.info("approve-document success", {
       documentId,
       userId,
-      approved: payload.approved,
-      previousStatus,
+      currentStatus: previousStatus,
+      hasTaskToken: true,
+      callbackAttempted: true,
+      callbackType: payload.approved ? "SendTaskSuccess" : "SendTaskFailure",
       finalStatus
     });
 

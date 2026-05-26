@@ -4,7 +4,7 @@ import { Check, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { approveDocument } from "@/lib/api";
+import { ApiRequestError, approveDocument } from "@/lib/api";
 import type { DocumentItem } from "@/lib/types";
 
 interface ApprovalPanelProps {
@@ -28,8 +28,16 @@ export function ApprovalPanel({ documentsNeedingApproval, onActionComplete }: Ap
       console.log("approval api response", result);
       await onActionComplete?.();
     } catch (error) {
-      console.error("approval api error", error);
-      setErrorMessage(error instanceof Error ? error.message : "Approval action failed.");
+      if (error instanceof ApiRequestError) {
+        console.error("approval api error", { status: error.status, message: error.message });
+        setErrorMessage(error.message);
+      } else if (error instanceof Error) {
+        console.error("approval api error", { status: "unknown", message: error.message });
+        setErrorMessage(error.message);
+      } else {
+        console.error("approval api error", { status: "unknown", message: "Approval action failed." });
+        setErrorMessage("Approval action failed.");
+      }
     } finally {
       setPendingDocumentId(null);
     }
