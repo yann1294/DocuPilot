@@ -16,7 +16,7 @@ interface GetDocumentResponse {
     classification: string;
     createdAt: string;
     updatedAt?: string;
-    extractedFields?: Record<string, string>;
+    extractedFields?: Record<string, string | null>;
     errorMessage?: string;
   };
 }

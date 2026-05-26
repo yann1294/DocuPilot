@@ -24,7 +24,7 @@ export interface DocumentRecord {
   extractedText?: string;
   summary?: string;
   classification?: string;
-  extractedFields?: Record<string, string>;
+  extractedFields?: Record<string, string | null>;
   errorMessage?: string;
   taskToken?: string;
   approvalRequestedAt?: string;

@@ -9,20 +9,20 @@ interface PersistInput {
       summary?: string;
       classification?: string;
       extractedText?: string;
-      extractedFields?: Record<string, string>;
+      extractedFields?: Record<string, string | null>;
     };
   };
   summary?: string;
   classification?: string;
   extractedText?: string;
-  extractedFields?: Record<string, string>;
+  extractedFields?: Record<string, string | null>;
 }
 
 function coalesceResult(event: PersistInput): {
   summary: string;
   classification: string;
   extractedText: string;
-  extractedFields: Record<string, string>;
+  extractedFields: Record<string, string | null>;
 } {
   const payload = event.gemini?.Payload;
   return {

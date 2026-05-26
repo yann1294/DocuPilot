@@ -74,7 +74,7 @@ describe("gemini-process-document JSON extraction", () => {
       documentId: "d"
     });
 
-    expect(result.classification).toBe("INVOICE");
+    expect(result.classification).toBe("invoice");
     expect(result.extractedFields.invoiceNumber).toBe("INV-1");
     expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: "gemini-2.5-flash" });
   });
@@ -103,7 +103,48 @@ describe("gemini-process-document JSON extraction", () => {
       documentId: "d"
     });
 
-    expect(result.classification).toBe("RECEIPT");
+    expect(result.classification).toBe("receipt");
     expect(result.extractedFields.merchant).toBe("Store");
+  });
+
+  it("handles prose before and after JSON", async () => {
+    mockGenerateContent.mockResolvedValue({
+      response: {
+        text: () =>
+          'Here is the analysis:\\n{"classification":"INVOICE","confidence":"0.42","summary":"ok","extractedText":"t","extractedFields":{"vendor":"ACME"},"requiresApprovalReason":"manual check"}\\nDone.'
+      }
+    });
+
+    const result = await handler({
+      bucket: "bucket",
+      key: "uploads/u/d/file.pdf",
+      userId: "u",
+      documentId: "d"
+    });
+
+    expect(result.classification).toBe("invoice");
+    expect(result.confidence).toBe(0.42);
+    expect(result.extractedFields.vendor).toBe("ACME");
+  });
+
+  it("returns fallback when JSON is malformed", async () => {
+    mockGenerateContent.mockResolvedValue({
+      response: {
+        text: () => "not valid json payload"
+      }
+    });
+
+    const result = await handler({
+      bucket: "bucket",
+      key: "uploads/u/d/file.pdf",
+      userId: "u",
+      documentId: "d"
+    });
+
+    expect(result.classification).toBe("other");
+    expect(result.confidence).toBe(0);
+    expect(result.summary).toContain("did not fully match");
+    expect(result.requiresApprovalReason).toContain("incomplete structured data");
+    expect(result.extractedFields.rawClassification).toBeNull();
   });
 });
