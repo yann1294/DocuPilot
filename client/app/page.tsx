@@ -68,7 +68,7 @@ export default async function HomePage() {
           {features.map((feature) => (
             <Card key={feature.title}>
               <CardHeader>
-                <feature.icon className="h-5 w-5 text-indigo-600" />
+                <feature.icon className="h-5 w-5 text-sky-600" />
                 <CardTitle className="mt-2 text-xl">{feature.title}</CardTitle>
                 <CardDescription>{feature.description}</CardDescription>
               </CardHeader>

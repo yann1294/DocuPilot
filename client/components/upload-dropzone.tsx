@@ -78,7 +78,7 @@ export function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
         <Badge>Secure Upload</Badge>
       </CardHeader>
       <CardContent>
-        <label className="block cursor-pointer rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center transition hover:border-indigo-300 hover:bg-indigo-50/40">
+        <label className="block cursor-pointer rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center transition hover:border-sky-300 hover:bg-sky-50/40">
           <UploadCloud className="mx-auto h-8 w-8 text-slate-500" />
           <span className="mt-3 block text-sm font-medium text-slate-800">Choose file to upload</span>
           <span className="mt-1 block text-xs text-slate-500">PDF, PNG, JPEG, WEBP</span>
@@ -88,7 +88,7 @@ export function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
             {(state === "requesting_url" || state === "uploading") && (
-              <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+              <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
             )}
             {state === "uploaded" && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
             {state === "error" && <AlertCircle className="h-4 w-4 text-rose-600" />}
@@ -98,7 +98,7 @@ export function UploadDropzone({ onUploaded }: UploadDropzoneProps) {
           {state === "uploading" && (
             <div className="mt-3">
               <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                <div className="h-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} />
+                <div className="h-full bg-sky-600 transition-all" style={{ width: `${progress}%` }} />
               </div>
               <p className="mt-1 text-xs text-slate-600">{progress}% complete</p>
             </div>

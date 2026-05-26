@@ -89,7 +89,7 @@ export default function DashboardPage() {
           <UploadDropzone onUploaded={() => void fetchDocuments()} />
           <Card>
             <CardHeader>
-              <div className="mb-1 flex items-center gap-2 text-indigo-700">
+              <div className="mb-1 flex items-center gap-2 text-sky-700">
                 <Workflow className="h-4 w-4" />
                 <span className="text-xs font-semibold uppercase tracking-wide">Workflow</span>
               </div>
@@ -112,7 +112,7 @@ export default function DashboardPage() {
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-slate-600">Total documents</p>
-                <FileText className="h-4 w-4 text-indigo-600" />
+                <FileText className="h-4 w-4 text-sky-600" />
               </div>
               <p className="mt-2 text-2xl font-semibold text-slate-900">{documents.length}</p>
             </CardContent>

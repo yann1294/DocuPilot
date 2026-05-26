@@ -108,10 +108,17 @@ export const handler = async (event: APIGatewayProxyEventV2WithJWTAuthorizer) =>
         );
       }
     } else {
-      console.info("approve-document no taskToken found, updating DynamoDB only", {
+      console.error("approve-document missing taskToken", {
         documentId,
-        userId
+        userId,
+        approved: payload.approved,
+        previousStatus
       });
+      return errorResponse(
+        409,
+        "APPROVAL_CALLBACK_CONFLICT",
+        "Could not complete approval callback. The workflow may have already ended or task token is invalid."
+      );
     }
 
     await ddb.send(
